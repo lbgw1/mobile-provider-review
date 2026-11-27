@@ -69,7 +69,7 @@ export function ThreadChipHoverCard(props: {
           <ProviderInstanceIcon
             driverKind={provider.driver}
             displayName={resolveProviderInstanceDisplayName(provider)}
-            acpRegistryIconUrl={provider.iconUrl}
+            iconUrl={provider.iconUrl}
             iconClassName="size-3 shrink-0 opacity-60"
           />
           <div className="min-w-0 truncate text-foreground/75">{modelLabel}</div>

@@ -15,7 +15,7 @@ import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
 interface ProviderStartingPresentation {
   readonly displayName: string;
   readonly acpRegistryAgentId: string | undefined;
-  readonly acpRegistryIconUrl: string | undefined;
+  readonly iconUrl: string | undefined;
 }
 
 // Keyed per instance so provider status pushes don't rerender the live row.
@@ -33,13 +33,13 @@ const providerStartingPresentationAtom = Atom.family((key: string) =>
     const next = {
       displayName: entry.displayName,
       acpRegistryAgentId: entry.acpRegistryAgentId,
-      acpRegistryIconUrl: entry.acpRegistryIconUrl,
+      iconUrl: entry.iconUrl,
     };
     const previous = Option.getOrNull(get.self<ProviderStartingPresentation | null>());
     return previous &&
       previous.displayName === next.displayName &&
       previous.acpRegistryAgentId === next.acpRegistryAgentId &&
-      previous.acpRegistryIconUrl === next.acpRegistryIconUrl
+      previous.iconUrl === next.iconUrl
       ? previous
       : next;
   }).pipe(Atom.withLabel("provider-starting-presentation")),
@@ -59,7 +59,7 @@ export function ProviderStartingIcon(props: {
       driverKind={props.driver}
       displayName={presentation?.displayName ?? PROVIDER_DISPLAY_NAMES[props.driver] ?? ""}
       acpRegistryAgentId={presentation?.acpRegistryAgentId}
-      acpRegistryIconUrl={presentation?.acpRegistryIconUrl}
+      iconUrl={presentation?.iconUrl}
       className="z-auto"
       iconClassName="size-4"
     />

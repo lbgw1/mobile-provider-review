@@ -102,7 +102,6 @@ const ModelPickerSidebarItem = memo(function ModelPickerSidebarItem(props: {
         displayName={props.entry.displayName}
         accentColor={props.entry.accentColor}
         acpRegistryAgentId={props.entry.acpRegistryAgentId}
-        acpRegistryIconUrl={props.entry.acpRegistryIconUrl}
         iconUrl={props.entry.iconUrl}
         showBadge={showInstanceBadge}
         className="size-6 z-30"
