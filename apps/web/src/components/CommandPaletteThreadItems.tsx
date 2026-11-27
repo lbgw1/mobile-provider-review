@@ -172,7 +172,7 @@ function useThreadActionItems(input: {
               thread.runtime?.providerName ?? providerEntry?.displayName ?? modelInstanceId
             }
             acpRegistryAgentId={providerEntry?.acpRegistryAgentId}
-            acpRegistryIconUrl={providerEntry?.acpRegistryIconUrl}
+            iconUrl={providerEntry?.iconUrl}
           />
         );
       },

@@ -281,6 +281,36 @@ describe("mobile model options", () => {
     ).toEqual(["google"]);
   });
 
+  it("keeps instance icons on catalog and saved fallback models", () => {
+    const config = {
+      providers: [
+        {
+          instanceId: "custom",
+          driver: "acpRegistry",
+          enabled: true,
+          installed: true,
+          iconUrl: "https://example.com/custom-icon.png",
+          auth: { status: "authenticated" },
+          models: [{ slug: "test", name: "Test", capabilities: null }],
+        },
+      ],
+    } as unknown as ServerConfig;
+    const options = buildModelOptions(
+      config,
+      {
+        instanceId: ProviderInstanceId.make("custom"),
+        model: "saved",
+      },
+      undefined,
+      null,
+    );
+    expect(options).toHaveLength(2);
+    expect(options.map((option) => option.providerIconUrl)).toEqual([
+      "https://example.com/custom-icon.png",
+      "https://example.com/custom-icon.png",
+    ]);
+  });
+
   it("carries account badges into catalog and saved fallback models", () => {
     const config = {
       providers: [

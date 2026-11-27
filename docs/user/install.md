@@ -98,6 +98,12 @@ Open **Settings → Providers** (web or desktop), select the environment, and en
 - **Updates**: Click **Update now** on outdated provider cards (supports Homebrew, mise `latest`, npm/pnpm/Yarn/Bun/Volta/Vite+, or the CLI's own updater; update Nix, Chocolatey, or pinned mise installs manually).
 - **Multiple instances**: Add extra provider instances for separate accounts, API keys, or custom endpoints (mark secret env vars as sensitive).
 
+To tell instances of the same provider apart, set an instance's **Icon** to an
+HTTPS image URL. Every client connected to that environment shows it, including
+mobile. **Reset** restores the provider's icon, which also appears whenever the
+image cannot load.
+
+
 ### Provider check timeouts
 
 If a working CLI times out during T3 Code's readiness check, increase its probe deadline (in milliseconds) in the server's environment (or systemd override / `service.env`) and restart:
