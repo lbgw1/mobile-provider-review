@@ -2924,11 +2924,12 @@ it.layer(
       }),
     );
 
-    it.effect("publishes a new label for an instance the registry kept live", () =>
+    it.effect("publishes label changes and icon changes for an instance kept live", () =>
       Effect.gen(function* () {
         const driver = ProviderDriverKind.make("antigravity");
         const instanceId = ProviderInstanceId.make("account-a");
         let displayName = "Account A";
+        let iconUrl: string | undefined;
         const instance: ProviderInstance = {
           instanceId,
           driverKind: driver,
@@ -2949,6 +2950,7 @@ it.layer(
               instanceId,
               driver,
               displayName,
+              ...(iconUrl ? { iconUrl } : {}),
               status: "ready" as const,
               enabled: true,
               installed: true,
@@ -2996,6 +2998,20 @@ it.layer(
         displayName = "Account B";
         yield* PubSub.publish(changes, undefined);
         assert.isTrue(Option.isSome(yield* Fiber.join(relabelled)));
+
+        for (const nextIcon of ["https://example.com/icon.png", undefined]) {
+          const updated = yield* registry.streamChanges.pipe(
+            Stream.filter((providers) => {
+              const current = providers.find((provider) => provider.instanceId === instanceId);
+              return current?.displayName === "Account B" && current.iconUrl === nextIcon;
+            }),
+            Stream.runHead,
+            Effect.forkChild({ startImmediately: true }),
+          );
+          iconUrl = nextIcon;
+          yield* PubSub.publish(changes, undefined);
+          assert.isTrue(Option.isSome(yield* Fiber.join(updated)));
+        }
       }),
     );
 

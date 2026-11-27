@@ -1130,13 +1130,13 @@ export const layer = Layer.effect(
             }).pipe(Effect.ignoreCause({ log: true })),
           { concurrency: "unbounded", discard: true },
         );
-        // A rename keeps the instance live, so its new label only arrives from a fresh read.
+        // Presentation-only edits keep the instance live. Read its current label, color and icon.
         const published = new Map(
           (yield* Ref.get(providersRef)).map((provider) => [provider.instanceId, provider]),
         );
         yield* Effect.forEach(
           carriedOver.values(),
-          (instance) =>
+          ({ instance }) =>
             Effect.gen(function* () {
               // Its first check publishes the new label anyway; the placeholder must not replace the cache.
               if (yield* instance.snapshot.isAwaitingFirstCheck ?? Effect.succeed(false)) return;
@@ -1144,7 +1144,8 @@ export const layer = Layer.effect(
               const previous = published.get(instance.instanceId);
               if (
                 previous?.displayName !== provider.displayName ||
-                previous?.accentColor !== provider.accentColor
+                previous?.accentColor !== provider.accentColor ||
+                previous?.iconUrl !== provider.iconUrl
               ) {
                 yield* syncProvider(provider);
               }
