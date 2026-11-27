@@ -51,7 +51,6 @@ interface InstanceSecrets {
 }
 
 interface LiveEntry {
-  readonly sourceInstance: ProviderInstance;
   readonly instance: ProviderInstance;
   readonly scope: Scope.Closeable;
   readonly entry: ProviderInstanceConfig;
