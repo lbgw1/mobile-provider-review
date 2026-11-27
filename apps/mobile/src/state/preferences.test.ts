@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import { vi } from "vite-plus/test";
 import { ProviderInstanceId } from "@t3tools/contracts";
@@ -31,6 +32,8 @@ vi.mock("../lib/runtime", async () => {
 import { createMobilePreferencesState } from "./preferences";
 import { useAtomCommand } from "./use-atom-command";
 import * as MobilePreferences from "../persistence/mobile-preferences";
+import * as MobileDatabase from "../persistence/mobile-database";
+import * as MobileSecureStorage from "../persistence/mobile-secure-storage";
 
 function deferred<A>() {
   let resolve!: (value: A) => void;
@@ -232,5 +235,51 @@ describe("mobile preferences state", () => {
       unmount();
       registry.dispose();
     }),
+  );
+});
+
+describe("model picker preferences on disk", () => {
+  it.effect(
+    "restores explicit open and closed choices in a fresh store alongside old preferences",
+    () =>
+      Effect.gen(function* () {
+        let stored: MobileDatabase.StoredPreferencesJson = {
+          payload: JSON.stringify({ baseFontSize: 18 }),
+          updatedAt: 1,
+        };
+        const persistence = MobilePreferences.layer.pipe(
+          Layer.provide(
+            Layer.mock(MobileDatabase.MobileDatabase)({
+              loadPreferencesJson: Effect.sync(() => Option.some(stored)),
+              savePreferencesJson: (payload, updatedAt) =>
+                Effect.sync(() => {
+                  stored = { payload, updatedAt };
+                }),
+            }),
+          ),
+          Layer.provide(
+            Layer.mock(MobileSecureStorage.MobileSecureStorage)({
+              getItem: () => Effect.succeed(null),
+              removeItem: () => Effect.void,
+            }),
+          ),
+        );
+        const load = MobilePreferences.MobilePreferencesStore.pipe(
+          Effect.flatMap((store) => store.load),
+        );
+        expect(yield* load.pipe(Effect.provide(persistence))).toEqual({ baseFontSize: 18 });
+        const expanded = {
+          '["env-a","example-provider"]': true,
+          '["env-b","example-provider"]': false,
+        };
+        yield* MobilePreferences.MobilePreferencesStore.pipe(
+          Effect.flatMap((store) => store.update(() => ({ modelPickerExpanded: expanded }))),
+          Effect.provide(persistence),
+        );
+        expect(yield* load.pipe(Effect.provide(persistence))).toEqual({
+          baseFontSize: 18,
+          modelPickerExpanded: expanded,
+        });
+      }),
   );
 });

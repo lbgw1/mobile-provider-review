@@ -93,13 +93,20 @@ export function canCommitPendingModel(
   );
 }
 
+export function providerSectionPreferenceKey(
+  environmentId: string | null,
+  section: string,
+): string {
+  return JSON.stringify([environmentId, section]);
+}
+
 export function providerSectionIsCollapsed(input: {
   readonly defaultExpanded: boolean;
-  readonly hasExpansionOverride: boolean;
+  readonly savedExpanded: boolean | undefined;
   readonly isNarrowed: boolean;
 }): boolean {
   if (input.isNarrowed) {
     return false;
   }
-  return input.defaultExpanded ? input.hasExpansionOverride : !input.hasExpansionOverride;
+  return !(input.savedExpanded ?? input.defaultExpanded);
 }
