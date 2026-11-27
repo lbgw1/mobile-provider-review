@@ -1476,7 +1476,7 @@ export const layer = Layer.effect(
     const runAllUsageLimits = syncLiveSourcesAndContinue.pipe(
       Effect.andThen(Ref.get(liveSubsRef)),
       Effect.flatMap((instances) =>
-        Effect.forEach(instances.values(), (instance) => refreshOneUsage(instance), {
+        Effect.forEach(instances.values(), ({ instance }) => refreshOneUsage(instance), {
           concurrency: "unbounded",
           discard: true,
         }),
@@ -1528,7 +1528,7 @@ export const layer = Layer.effect(
         return;
       }
       yield* syncLiveSourcesAndContinue;
-      const instance = (yield* Ref.get(liveSubsRef)).get(instanceId);
+      const instance = (yield* Ref.get(liveSubsRef)).get(instanceId)?.instance;
       if (!instance) return;
       yield* refreshOneUsage(instance);
     });
