@@ -163,6 +163,7 @@ export interface Preferences {
   readonly connectionTracesEnabled?: boolean;
   readonly connectOnboardingOptOutAccounts?: ReadonlyArray<string>;
   readonly collapsedProjectGroups?: readonly string[];
+  readonly modelPickerExpanded?: Readonly<Record<string, boolean>>;
   readonly dismissedDatabaseStorageNotices?: readonly string[];
   /** Per host, when the newest T3 Connect device this phone has announced first signed in. */
   readonly connectDevicesSeenThrough?: Readonly<Record<string, number>>;
@@ -233,6 +234,7 @@ export class MobilePreferencesStore extends Context.Service<
   }
 >()("@t3tools/mobile/persistence/mobile-preferences/MobilePreferencesStore") {}
 
+const isModelPickerExpanded = Schema.is(Schema.Record(Schema.String, Schema.Boolean));
 const isToolCallVisibility = Schema.is(ToolCallVisibility);
 const isPullRequestMergeMethod = Schema.is(PullRequestMergeMethod);
 
@@ -262,6 +264,7 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     connectionTracesEnabled?: boolean;
     connectOnboardingOptOutAccounts?: ReadonlyArray<string>;
     collapsedProjectGroups?: readonly string[];
+    modelPickerExpanded?: Preferences["modelPickerExpanded"];
     dismissedDatabaseStorageNotices?: readonly string[];
     connectDevicesSeenThrough?: Readonly<Record<string, number>>;
     composerEnterBehavior?: ComposerEnterBehavior;
@@ -372,6 +375,9 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     preferences.connectOnboardingOptOutAccounts = parsed.connectOnboardingOptOutAccounts.filter(
       (account): account is string => typeof account === "string",
     );
+  }
+  if (isModelPickerExpanded(parsed.modelPickerExpanded)) {
+    preferences.modelPickerExpanded = parsed.modelPickerExpanded;
   }
   if (Array.isArray(parsed.collapsedProjectGroups)) {
     preferences.collapsedProjectGroups = parsed.collapsedProjectGroups.filter(

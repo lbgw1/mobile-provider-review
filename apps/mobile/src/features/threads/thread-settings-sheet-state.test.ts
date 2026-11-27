@@ -14,6 +14,8 @@ import {
 import {
   canCommitPendingModel,
   pendingModelAfterPress,
+  providerSectionIsCollapsed,
+  providerSectionPreferenceKey,
   visibleCatalogModels,
 } from "./thread-settings-sheet-state";
 
@@ -180,5 +182,30 @@ describe("thread settings sheet state", () => {
     expect(visible("")).toEqual(["gpt-next"]);
     expect(visible("   ")).toEqual(["gpt-next"]);
     expect(visible("Claude Opus 4.8")).toEqual(["Claude Opus 4.8"]);
+  });
+});
+
+describe("provider section expansion", () => {
+  it("remembers explicit open and closed choices when the selected model changes", () => {
+    for (const defaultExpanded of [true, false]) {
+      for (const savedExpanded of [true, false, undefined]) {
+        expect(
+          providerSectionIsCollapsed({ defaultExpanded, savedExpanded, isNarrowed: false }),
+        ).toBe(!(savedExpanded ?? defaultExpanded));
+        expect(
+          providerSectionIsCollapsed({ defaultExpanded, savedExpanded, isNarrowed: true }),
+        ).toBe(false);
+      }
+    }
+  });
+
+  it("keeps provider and nested section choices separate on different servers", () => {
+    const keys = [
+      providerSectionPreferenceKey("env-a", "example-provider"),
+      providerSectionPreferenceKey("env-b", "example-provider"),
+      providerSectionPreferenceKey(null, "example-provider"),
+      providerSectionPreferenceKey("env-a", "example-provider:sub-provider:local"),
+    ];
+    expect(new Set(keys).size).toBe(keys.length);
   });
 });
