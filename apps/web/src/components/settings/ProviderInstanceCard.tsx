@@ -1,3 +1,4 @@
+import { resolveOfficialAcpRegistryIconUrl } from "@t3tools/contracts";
 import { Spinner } from "~/components/ui/spinner";
 
 import {
@@ -64,6 +65,7 @@ import {
 } from "./ProviderSettingsForm";
 import { ProviderModelsSection } from "./ProviderModelsSection";
 import { ProviderInstanceIcon } from "../chat/ProviderInstanceIcon";
+import { ProviderIconUrlInput } from "./ProviderIconUrlInput";
 import { ProviderAccentColorPicker } from "./ProviderAccentColorPicker";
 import { RedactedSensitiveText } from "./RedactedSensitiveText";
 import { SettingResetButton, SettingsRow, SettingsSection } from "./settingsLayout";
@@ -929,6 +931,11 @@ export function ProviderInstanceCard({
     );
   };
 
+  const updateIconUrl = (value: string) => {
+    const { iconUrl: _omit, ...rest } = instance;
+    onUpdate(value ? { ...rest, iconUrl: value } : rest);
+  };
+
   const updateConfig = (nextConfig: Record<string, unknown> | undefined) => {
     const { config: _omit, ...rest } = instance;
     onUpdate(
@@ -984,10 +991,13 @@ export function ProviderInstanceCard({
           ? undefined
           : (readConfigString(instance.config, "agentId") ?? undefined)
       }
-      acpRegistryIconUrl={
-        readConfigString(instance.config, "source") === "local"
+      iconUrl={
+        instance.iconUrl ??
+        (readConfigString(instance.config, "source") === "local"
           ? undefined
-          : (readConfigString(instance.config, "registryIconUrl") ?? undefined)
+          : (resolveOfficialAcpRegistryIconUrl(
+              readConfigString(instance.config, "registryIconUrl"),
+            ) ?? undefined))
       }
       showBadge={Boolean(accentColor)}
       className="size-5"
@@ -1374,6 +1384,21 @@ export function ProviderInstanceCard({
                 spellCheck={false}
               />
             </div>
+          }
+        />
+        <SettingsRow
+          title={gt("Icon")}
+          description={gt(
+            "Use an HTTPS image URL for this instance. Reset to restore the provider icon.",
+          )}
+          control={
+            <ProviderIconUrlInput
+              value={instance.iconUrl}
+              driverKind={instance.driver}
+              displayName={displayName}
+              disabled={readOnly}
+              onCommit={updateIconUrl}
+            />
           }
         />
       </SettingsSection>

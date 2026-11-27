@@ -2924,11 +2924,12 @@ it.layer(
       }),
     );
 
-    it.effect("publishes a new label for an instance the registry kept live", () =>
+    it.effect("publishes label changes and icon changes for an instance kept live", () =>
       Effect.gen(function* () {
         const driver = ProviderDriverKind.make("antigravity");
         const instanceId = ProviderInstanceId.make("account-a");
         let displayName = "Account A";
+        let iconUrl: string | undefined;
         const instance: ProviderInstance = {
           instanceId,
           driverKind: driver,
@@ -2949,6 +2950,7 @@ it.layer(
               instanceId,
               driver,
               displayName,
+              ...(iconUrl ? { iconUrl } : {}),
               status: "ready" as const,
               enabled: true,
               installed: true,
@@ -2996,6 +2998,20 @@ it.layer(
         displayName = "Account B";
         yield* PubSub.publish(changes, undefined);
         assert.isTrue(Option.isSome(yield* Fiber.join(relabelled)));
+
+        for (const nextIcon of ["https://example.com/icon.png", undefined]) {
+          const updated = yield* registry.streamChanges.pipe(
+            Stream.filter((providers) => {
+              const current = providers.find((provider) => provider.instanceId === instanceId);
+              return current?.displayName === "Account B" && current.iconUrl === nextIcon;
+            }),
+            Stream.runHead,
+            Effect.forkChild({ startImmediately: true }),
+          );
+          iconUrl = nextIcon;
+          yield* PubSub.publish(changes, undefined);
+          assert.isTrue(Option.isSome(yield* Fiber.join(updated)));
+        }
       }),
     );
 
@@ -3156,7 +3172,7 @@ it.layer(
       }),
     );
 
-    it.effect("ignores a queued rescan from a replaced instance", () =>
+    it.effect("ignores rescan reports from a replaced instance", () =>
       Effect.gen(function* () {
         const h = yield* makeWorkspaceRescanHarness;
         yield* h.seed("/workspace");
@@ -3171,10 +3187,7 @@ it.layer(
         yield* Fiber.join(rebuilt);
         yield* h.seed("/workspace");
         yield* h.seed("/barrier");
-        // The forwarder pulls the second report only after queueing the first.
         yield* Queue.offerAll(h.first.rescans, ["/workspace", "/workspace"]);
-        yield* Queue.take(h.first.reports);
-        yield* Queue.take(h.first.reports);
         yield* Queue.offer(replacement.rescans, "/barrier");
         // A scan started for the stale report would come before the barrier's.
         const completeBarrier = yield* h.nextScan("/barrier");
@@ -3906,6 +3919,9 @@ it.layer(
           models: [],
         } satisfies ServerProvider;
         const changes = yield* PubSub.unbounded<ServerProvider>();
+        let activeSubscriptions = 0;
+        let activeRescanSubscriptions = 0;
+        const instanceChanges = yield* PubSub.unbounded<void>();
         const instance = {
           instanceId: cursorInstanceId,
           driverKind: cursorDriver,
@@ -3915,6 +3931,18 @@ it.layer(
           },
           displayName: undefined,
           enabled: true,
+          workspaceRescans: Stream.unwrap(
+            Effect.sync(() => {
+              activeRescanSubscriptions++;
+              return Stream.never;
+            }),
+          ).pipe(
+            Stream.ensuring(
+              Effect.sync(() => {
+                activeRescanSubscriptions--;
+              }),
+            ),
+          ),
           snapshot: {
             resolveMaintenance: () =>
               Effect.succeed(
@@ -3925,23 +3953,33 @@ it.layer(
               ),
             getSnapshot: Effect.succeed(initialProvider),
             refresh: Effect.succeed(refreshedProvider),
-            streamChanges: Stream.fromPubSub(changes),
+            streamChanges: Stream.unwrap(
+              Effect.sync(() => {
+                activeSubscriptions++;
+                return Stream.fromPubSub(changes);
+              }),
+            ).pipe(
+              Stream.ensuring(
+                Effect.sync(() => {
+                  activeSubscriptions--;
+                }),
+              ),
+            ),
             applyUsageLimits: () => Effect.void,
           },
           orchestrationAdapter: {} as ProviderInstance["orchestrationAdapter"],
           textGeneration: {} as ProviderInstance["textGeneration"],
         } satisfies ProviderInstance;
+        let instances: ReadonlyArray<ProviderInstance> = [instance];
         const layerInstanceRegistry = Layer.succeed(
           ProviderInstanceRegistry.ProviderInstanceRegistry,
           {
             getInstance: (instanceId) =>
-              Effect.succeed(instanceId === cursorInstanceId ? instance : undefined),
-            listInstances: Effect.succeed([instance]),
+              Effect.sync(() => instances.find((instance) => instance.instanceId === instanceId)),
+            listInstances: Effect.sync(() => instances),
             listUnavailable: Effect.succeed([]),
             streamChanges: Stream.empty,
-            subscribeChanges: Effect.flatMap(PubSub.unbounded<void>(), (pubsub) =>
-              PubSub.subscribe(pubsub),
-            ),
+            subscribeChanges: PubSub.subscribe(instanceChanges),
           },
         );
         const scope = yield* Scope.make();
@@ -3984,6 +4022,34 @@ it.layer(
               modelsRetained: true,
             }),
           );
+          for (const iconUrl of ["https://example.com/one.png", "https://example.com/two.png"]) {
+            const next = { ...initialProvider, iconUrl };
+            instances = [
+              {
+                ...instance,
+                snapshot: { ...instance.snapshot, getSnapshot: Effect.succeed(next) },
+              },
+            ];
+            const updated = yield* registry.streamChanges.pipe(
+              Stream.filter((providers) => providers[0]?.iconUrl === iconUrl),
+              Stream.runHead,
+              Effect.forkChild({ startImmediately: true }),
+            );
+            yield* PubSub.publish(instanceChanges, undefined);
+            yield* Fiber.join(updated);
+            assert.strictEqual(activeSubscriptions, 1);
+            assert.strictEqual(activeRescanSubscriptions, 1);
+          }
+          instances = [];
+          const removed = yield* registry.streamChanges.pipe(
+            Stream.filter((providers) => providers.length === 0),
+            Stream.runHead,
+            Effect.forkChild({ startImmediately: true }),
+          );
+          yield* PubSub.publish(instanceChanges, undefined);
+          yield* Fiber.join(removed);
+          assert.strictEqual(activeSubscriptions, 0);
+          assert.strictEqual(activeRescanSubscriptions, 0);
         }).pipe(Effect.provide(runtimeServices));
       }),
     );

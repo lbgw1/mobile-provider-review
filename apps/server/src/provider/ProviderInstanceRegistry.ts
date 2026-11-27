@@ -67,12 +67,12 @@ interface RegistryState {
   readonly changes: PubSub.PubSub<void>;
 }
 
-const entryEqual = (a: ProviderInstanceConfig, b: ProviderInstanceConfig): boolean =>
-  Equal.equals(a, b);
+const entryEqual = (a: ProviderInstanceConfig, b: ProviderInstanceConfig): boolean => Equal.equals(a, b);
 
 const withoutPresentation = ({
   displayName: _displayName,
   accentColor: _accentColor,
+  iconUrl: _iconUrl,
   ...runtime
 }: ProviderInstanceConfig) => runtime;
 
@@ -97,6 +97,7 @@ const withLivePresentation = (
       if (stamped) next[key] = stamped;
       else delete next[key];
     }
+    if (current.iconUrl) next.iconUrl = current.iconUrl;
     return next;
   };
   const { snapshot, snapshotForCwd } = instance;
@@ -306,6 +307,7 @@ const buildEntry = Effect.fn("ProviderInstanceRegistry.buildEntry")(function* <R
         instanceId,
         displayName: entry.displayName,
         accentColor: entry.accentColor,
+        iconUrl: entry.iconUrl,
         reason: `Driver '${entry.driver}' is not registered in this build.`,
       }),
     };
@@ -328,6 +330,7 @@ const buildEntry = Effect.fn("ProviderInstanceRegistry.buildEntry")(function* <R
         instanceId,
         displayName: entry.displayName,
         accentColor: entry.accentColor,
+        iconUrl: entry.iconUrl,
         reason: `Invalid config for instance '${rawInstanceId}': ${detail}`,
       }),
     };
@@ -343,6 +346,7 @@ const buildEntry = Effect.fn("ProviderInstanceRegistry.buildEntry")(function* <R
         instanceId,
         displayName: entry.displayName,
         accentColor: entry.accentColor,
+        iconUrl: entry.iconUrl,
         reason: "Reading secrets…",
       }),
     };
@@ -366,6 +370,7 @@ const buildEntry = Effect.fn("ProviderInstanceRegistry.buildEntry")(function* <R
         instanceId,
         displayName: entry.displayName,
         accentColor: entry.accentColor,
+        iconUrl: entry.iconUrl,
         reason: `Could not read ${unreadable.join(", ")} from its secret provider. Unlock it, then refresh.`,
       }),
     };
@@ -400,6 +405,7 @@ const buildEntry = Effect.fn("ProviderInstanceRegistry.buildEntry")(function* <R
         instanceId,
         displayName: entry.displayName,
         accentColor: entry.accentColor,
+        iconUrl: entry.iconUrl,
         reason: `Driver '${entry.driver}' failed to create instance: ${createResult.failure.detail}`,
       }),
     };

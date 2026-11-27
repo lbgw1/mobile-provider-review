@@ -586,7 +586,11 @@ export const layer = Layer.effect(
       >
     >(new Map());
 
-    const liveSubsRef = yield* Ref.make<ReadonlyMap<ProviderInstanceId, ProviderInstance>>(
+    type LiveSubscription = {
+      readonly instance: ProviderInstance;
+      readonly fiber: Fiber.Fiber<void>;
+    };
+    const liveSubsRef = yield* Ref.make<ReadonlyMap<ProviderInstanceId, LiveSubscription>>(
       new Map(),
     );
     const syncSemaphore = yield* Semaphore.make(1);
@@ -846,7 +850,7 @@ export const layer = Layer.effect(
             syncLiveSourcesAndContinue.pipe(
               Effect.andThen(Ref.get(liveSubsRef)),
               Effect.flatMap((instances) =>
-                Effect.forEach(instances.values(), (instance) => refreshOneSource(instance), {
+                Effect.forEach(instances.values(), ({ instance }) => refreshOneSource(instance), {
                   concurrency: "unbounded",
                   discard: true,
                 }),
@@ -878,7 +882,7 @@ export const layer = Layer.effect(
     ) {
       yield* refreshHostPath;
       yield* syncLiveSourcesAndContinue;
-      const instance = (yield* Ref.get(liveSubsRef)).get(instanceId);
+      const instance = (yield* Ref.get(liveSubsRef)).get(instanceId)?.instance;
       if (!instance) {
         return yield* Ref.get(providersRef);
       }
@@ -1044,11 +1048,13 @@ export const layer = Layer.effect(
         }
         const previousSubs = yield* Ref.get(liveSubsRef);
 
-        const carriedOver = new Map<ProviderInstanceId, ProviderInstance>();
-        for (const [instanceId, previousInstance] of previousSubs) {
+        const carriedOver = new Map<ProviderInstanceId, LiveSubscription>();
+        for (const [instanceId, previous] of previousSubs) {
           const nextInstance = nextByInstance.get(instanceId);
-          if (nextInstance !== undefined && nextInstance === previousInstance) {
-            carriedOver.set(instanceId, previousInstance);
+          if (nextInstance !== undefined && nextInstance === previous.instance) {
+            carriedOver.set(instanceId, previous);
+          } else {
+            yield* Fiber.interrupt(previous.fiber);
           }
         }
 
@@ -1083,16 +1089,25 @@ export const layer = Layer.effect(
         }
 
         // Subscribe before reading so a probe completing mid-sync is observed by at least one path.
-        for (const [, instance] of newlyAdded) {
+        const nextSubs = new Map(carriedOver);
+        for (const [instanceId, instance] of newlyAdded) {
           const source = buildSnapshotSource(instance);
-          yield* Stream.runForEach(source.streamChanges, (provider) =>
-            correlateSnapshotWithSource(source, provider).pipe(Effect.flatMap(syncProvider)),
+          const fiber = yield* Effect.all(
+            [
+              Stream.runForEach(source.streamChanges, (provider) =>
+                correlateSnapshotWithSource(source, provider).pipe(Effect.flatMap(syncProvider)),
+              ),
+              ...(instance.workspaceRescans
+                ? [
+                    Stream.runForEach(instance.workspaceRescans, (cwd) =>
+                      Queue.offer(workspaceRescans, { instance, cwd }),
+                    ),
+                  ]
+                : []),
+            ],
+            { concurrency: "unbounded", discard: true },
           ).pipe(Effect.forkScoped);
-          if (instance.workspaceRescans) {
-            yield* Stream.runForEach(instance.workspaceRescans, (cwd) =>
-              Queue.offer(workspaceRescans, { instance, cwd }),
-            ).pipe(Effect.forkScoped);
-          }
+          nextSubs.set(instanceId, { instance, fiber });
         }
         yield* Effect.yieldNow;
 
@@ -1115,13 +1130,13 @@ export const layer = Layer.effect(
             }).pipe(Effect.ignoreCause({ log: true })),
           { concurrency: "unbounded", discard: true },
         );
-        // A rename keeps the instance live, so its new label only arrives from a fresh read.
+        // Presentation-only edits keep the instance live. Read its current label, color and icon.
         const published = new Map(
           (yield* Ref.get(providersRef)).map((provider) => [provider.instanceId, provider]),
         );
         yield* Effect.forEach(
           carriedOver.values(),
-          (instance) =>
+          ({ instance }) =>
             Effect.gen(function* () {
               // Its first check publishes the new label anyway; the placeholder must not replace the cache.
               if (yield* instance.snapshot.isAwaitingFirstCheck ?? Effect.succeed(false)) return;
@@ -1129,7 +1144,8 @@ export const layer = Layer.effect(
               const previous = published.get(instance.instanceId);
               if (
                 previous?.displayName !== provider.displayName ||
-                previous?.accentColor !== provider.accentColor
+                previous?.accentColor !== provider.accentColor ||
+                previous?.iconUrl !== provider.iconUrl
               ) {
                 yield* syncProvider(provider);
               }
@@ -1141,10 +1157,6 @@ export const layer = Layer.effect(
           replace: true,
         });
 
-        const nextSubs = new Map(carriedOver);
-        for (const [instanceId, instance] of newlyAdded) {
-          nextSubs.set(instanceId, instance);
-        }
         yield* Ref.set(liveSubsRef, nextSubs);
 
         const [previousProviders, providers] = yield* Ref.modify(
@@ -1465,7 +1477,7 @@ export const layer = Layer.effect(
     const runAllUsageLimits = syncLiveSourcesAndContinue.pipe(
       Effect.andThen(Ref.get(liveSubsRef)),
       Effect.flatMap((instances) =>
-        Effect.forEach(instances.values(), (instance) => refreshOneUsage(instance), {
+        Effect.forEach(instances.values(), ({ instance }) => refreshOneUsage(instance), {
           concurrency: "unbounded",
           discard: true,
         }),
@@ -1517,7 +1529,7 @@ export const layer = Layer.effect(
         return;
       }
       yield* syncLiveSourcesAndContinue;
-      const instance = (yield* Ref.get(liveSubsRef)).get(instanceId);
+      const instance = (yield* Ref.get(liveSubsRef)).get(instanceId)?.instance;
       if (!instance) return;
       yield* refreshOneUsage(instance);
     });
